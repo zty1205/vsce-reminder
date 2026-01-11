@@ -1,4 +1,4 @@
-# vsce-reminder - 变量转换提示助手
+# Reminder-helper - 变量转换提示助手
 
 一个专为 H5 开发设计的 VSCode 扩展，根据配置文件自动提示变量并支持值到变量的转换，帮助开发者快速使用 CSS 变量，提高开发效率。
 
@@ -68,77 +68,43 @@ margin: 15px;
 
 配置文件支持 JSON 格式，可以是数组或对象。推荐使用数组格式，支持多个配置项。
 
-### 配置文件示例
+### 使用预设（Presets）
+
+插件提供了预设功能，可以快速使用预定义的变量映射配置，无需从零开始编写。
+
+**使用方式：**
 
 ```json
 [
   {
-    "description": "间距变量配置",
+    "presets": ["preset-1"],
     "mapping": {
-      "margin": {
-        "15px": [
-          {
-            "mapping": "var(--spacing_7)",
-            "description": "小间距"
-          }
-        ],
-        "20px": [
-          {
-            "mapping": "var(--spacing_8)",
-            "description": "中间距"
-          }
-        ],
-        "30px": [
-          {
-            "mapping": "var(--spacing_10)",
-            "description": "大间距"
-          }
-        ]
-      },
-      "padding": {
-        "15px": [
-          {
-            "mapping": "var(--spacing_7)",
-            "description": "小内边距"
-          }
-        ],
-        "20px": [
-          {
-            "mapping": "var(--spacing_8)",
-            "description": "中间距"
-          }
-        ]
-      },
-      "fontSize": {
-        "14px": [
-          {
-            "mapping": "var(--body_4)",
-            "description": "小号字体"
-          }
-        ],
-        "16px": [
-          {
-            "mapping": "var(--body_3)",
-            "description": "标准字体"
-          }
-        ]
-      }
-    },
-    "languages": ["css", "scss", "less", "javascript", "typescript", "vue"],
-    "assignmentOperators": [":", "="],
-    "prefix": "",
-    "suffix": ""
+      // 可选：自定义配置，会覆盖预设中的相同配置
+    }
+  }
+]
+```
+
+**支持多预设组合：**
+
+```json
+[
+  {
+    "presets": ["preset-1", "preset-2"],
+    "mapping": {}
   }
 ]
 ```
 
 ### 配置字段说明
 
+- **presets** (可选): 预设名称数组
 - **description** (可选): 配置项的描述信息
 - **mapping** (必需): 属性名到值的映射关系
   - 键为属性名（如 `margin`、`padding`、`fontSize`）
   - 值为对象，键为原始值（如 `15px`），值为变量映射数组
   - 每个变量映射包含 `mapping`（变量名）和 `description`（描述）
+  - 用户配置的 `mapping` 会覆盖预设配置中的相同映射
 - **languages** (可选): 指定支持的文件类型，不指定则支持所有语言
 - **assignmentOperators** (可选): 指定触发补全的操作符，默认为 `[":", "="]`
 - **prefix** (可选): 变量前缀，默认为空

@@ -2,7 +2,7 @@
   "name": "vsce-reminder",
   "displayName": "reminder - 变量转换,提示助手",
   "description": "根据配置自动提示变量并支持值到变量的转换",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "engines": {
     "vscode": "^1.74.0"
   },

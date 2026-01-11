@@ -129,7 +129,7 @@ export function getSupportedPropertyNamesFromConfig(configItem: MappingConfigIte
   }
 
   const propertyNames: string[] = [];
-  Object.keys(configItem.mapping).forEach(prop => {
+  Object.keys(configItem.mapping).forEach((prop) => {
     // 添加原始属性名（可能是 kebab-case）
     propertyNames.push(prop);
     // 如果是 kebab-case，也添加 camelCase 变体
@@ -156,7 +156,7 @@ export function normalizePropertyName(propertyName: string): string {
 /**
  * 将赋值操作符数组转换为正则表达式模式
  * 例如 [':', '='] 转换为 '\\s*[:=]\\s*'
- * 
+ *
  * @param operators 操作符数组
  * @returns 正则表达式模式字符串，包含操作符前后的空格匹配
  */
@@ -164,13 +164,13 @@ export function getAssignmentOperatorsPattern(operators?: string[]): string {
   if (!operators || operators.length === 0) {
     return '\\s*[:=]\\s*'; // 默认值，匹配 : 或 =，前后可以有空格
   }
-  
+
   // 转义特殊字符并构建字符类
-  const escaped = operators.map(op => {
-    // 在正则表达式字符类中，需要转义的特殊字符：] \ ^ - 
+  const escaped = operators.map((op) => {
+    // 在正则表达式字符类中，需要转义的特殊字符：] \ ^ -
     return op.replace(/[\]\\^-]/g, '\\$&');
   });
-  
+
   // 返回模式：前后可以有空格，中间是操作符字符类
   return `[${escaped.join('')}]\\s*`;
 }
@@ -200,16 +200,12 @@ export function readConfigFile(configPath: string): MappingConfig | null {
       // 验证配置
       return validateConfig(config);
     } catch (jsonError) {
-      vscode.window.showErrorMessage(
-        `解析 JSON 配置文件失败: ${(jsonError as Error)?.message}`
-      );
+      vscode.window.showErrorMessage(`解析 JSON 配置文件失败: ${(jsonError as Error)?.message}`);
       console.error('解析 JSON 配置文件失败:', jsonError);
       return null;
     }
   } catch (error) {
-    vscode.window.showErrorMessage(
-      `读取配置文件失败: ${(error as Error)?.message}`
-    );
+    vscode.window.showErrorMessage(`读取配置文件失败: ${(error as Error)?.message}`);
     console.error('读取配置文件失败:', error);
     return null;
   }
@@ -224,24 +220,24 @@ function deepMergeMappings(
   userMapping: MappingConfigItem['mapping']
 ): MappingConfigItem['mapping'] {
   const merged: MappingConfigItem['mapping'] = { ...projectMapping };
-  
+
   // 遍历用户配置的映射
-  Object.keys(userMapping).forEach(propertyName => {
+  Object.keys(userMapping).forEach((propertyName) => {
     if (merged[propertyName]) {
       // 如果属性已存在，合并值映射
       const mergedValues: { [value: string]: VariableMappingItem[] } = { ...merged[propertyName] };
-      
+
       // 合并用户配置的值映射
-      Object.keys(userMapping[propertyName]).forEach(value => {
+      Object.keys(userMapping[propertyName]).forEach((value) => {
         // 如果值已存在，合并变量映射数组（用户配置优先，但保留项目配置中不冲突的项）
         if (mergedValues[value]) {
           // 合并数组，去重（基于 mapping 字段）
           const existingMappings = new Map<string, VariableMappingItem>();
-          mergedValues[value].forEach(item => {
+          mergedValues[value].forEach((item) => {
             existingMappings.set(item.mapping, item);
           });
           // 用户配置覆盖项目配置
-          userMapping[propertyName][value].forEach(item => {
+          userMapping[propertyName][value].forEach((item) => {
             existingMappings.set(item.mapping, item);
           });
           mergedValues[value] = Array.from(existingMappings.values());
@@ -249,14 +245,14 @@ function deepMergeMappings(
           mergedValues[value] = userMapping[propertyName][value];
         }
       });
-      
+
       merged[propertyName] = mergedValues;
     } else {
       // 如果属性不存在，直接使用用户配置
       merged[propertyName] = userMapping[propertyName];
     }
   });
-  
+
   return merged;
 }
 
@@ -272,15 +268,12 @@ function mergeProjectConfigIntoItem(
     // 用户配置的描述优先，如果没有则使用项目配置
     description: userConfigItem.description ?? projectConfig.description,
     // 深度合并映射对象
-    mapping: deepMergeMappings(
-      projectConfig.mapping || {},
-      userConfigItem.mapping || {}
-    ),
+    mapping: deepMergeMappings(projectConfig.mapping || {}, userConfigItem.mapping || {}),
     // 用户配置的其他字段优先，如果没有则使用项目配置
     prefix: userConfigItem.prefix ?? projectConfig.prefix,
     suffix: userConfigItem.suffix ?? projectConfig.suffix,
     assignmentOperators: userConfigItem.assignmentOperators ?? projectConfig.assignmentOperators,
-    languages: userConfigItem.languages ?? projectConfig.languages,
+    languages: userConfigItem.languages ?? projectConfig.languages
   };
 }
 
@@ -288,11 +281,8 @@ function mergeProjectConfigIntoItem(
  * 合并项目配置到用户配置数组
  * 将 projectConfig 合并到每个用户配置项中
  */
-export function mergeConfigs(
-  projectConfig: MappingConfigItem,
-  userConfig: MappingConfig
-): MappingConfig {
-  return userConfig.map(userItem => mergeProjectConfigIntoItem(projectConfig, userItem));
+export function mergeConfigs(projectConfig: MappingConfigItem, userConfig: MappingConfig): MappingConfig {
+  return userConfig.map((userItem) => mergeProjectConfigIntoItem(projectConfig, userItem));
 }
 
 /**
@@ -315,17 +305,14 @@ function stringToPresetName(name: string | PresetName): PresetName | null {
   if (Object.values(PresetName).includes(name as PresetName)) {
     return name as PresetName;
   }
-  
+
   // 尝试将字符串转换为枚举值（使用枚举值作为 key）
   const presetNameMap: Record<string, PresetName> = {
-    [PresetName.HORO_NIO]: PresetName.HORO_NIO,
-    [PresetName.HORO]: PresetName.HORO,
-    [PresetName.HORO_ALPS]: PresetName.HORO_ALPS,
-    [PresetName.HORO_FY]: PresetName.HORO_FY,
-    [PresetName.CEDAR]: PresetName.CEDAR,
-    [PresetName.DEFAULT]: PresetName.DEFAULT,
+    [PresetName.PRESET_1]: PresetName.PRESET_1,
+    [PresetName.PRESET_2]: PresetName.PRESET_2,
+    [PresetName.DEFAULT]: PresetName.DEFAULT
   };
-  
+
   return presetNameMap[name.toLowerCase()] || null;
 }
 
@@ -335,10 +322,11 @@ function stringToPresetName(name: string | PresetName): PresetName | null {
  */
 function mergePresetConfigs(presetConfigs: MappingConfigItem[]): MappingConfigItem {
   // 从空配置开始，逐个合并预设配置
-  return presetConfigs.reduce(
-    (merged, presetConfig) => mergeProjectConfigIntoItem(merged, presetConfig),
-    { mapping: {}, prefix: '', suffix: '' } as MappingConfigItem
-  );
+  return presetConfigs.reduce((merged, presetConfig) => mergeProjectConfigIntoItem(merged, presetConfig), {
+    mapping: {},
+    prefix: '',
+    suffix: ''
+  } as MappingConfigItem);
 }
 
 /**
@@ -361,18 +349,18 @@ function mergePresetsWithUserConfig(
   if (!presetNames || presetNames.length === 0) {
     return mergeDefaultPresetWithUserConfig(userItem);
   }
-  
+
   // 获取预设配置
   const presetConfigs = getPresetConfigs(presetNames);
-  
+
   // 如果没有预设配置，使用默认预设
   if (presetConfigs.length === 0) {
     return mergeDefaultPresetWithUserConfig(userItem);
   }
-  
+
   // 合并所有预设配置
   const mergedPresetConfig = mergePresetConfigs(presetConfigs);
-  
+
   // 将合并后的预设配置与用户配置项合并（用户配置优先）
   return mergeProjectConfigIntoItem(mergedPresetConfig, userItem);
 }
@@ -396,12 +384,12 @@ export function loadMergedConfig(): MappingConfig {
         const defaultConfigs = getPresetConfigs([PresetName.DEFAULT]);
         return defaultConfigs.length > 0 ? defaultConfigs : [{ mapping: {} }];
       }
-      return validatedConfig.map(userItem => {
+      return validatedConfig.map((userItem) => {
         // 将字符串数组转换为 PresetName 数组，过滤掉无效值
         const presetNames = (userItem.presets || [])
-          .map(name => stringToPresetName(name as string))
+          .map((name) => stringToPresetName(name as string))
           .filter((name): name is PresetName => name !== null);
-        
+
         // 合并预设配置和用户配置
         return mergePresetsWithUserConfig(presetNames, userItem);
       });
@@ -411,9 +399,7 @@ export function loadMergedConfig(): MappingConfig {
       return defaultConfigs.length > 0 ? defaultConfigs : [{ mapping: {} }];
     }
   } catch (error) {
-    vscode.window.showErrorMessage(
-      `加载配置失败: ${(error as Error)?.message}`
-    );
+    vscode.window.showErrorMessage(`加载配置失败: ${(error as Error)?.message}`);
     console.error('加载配置失败:', error);
     // 出错时返回默认预设配置
     const defaultConfigs = getPresetConfigs([PresetName.DEFAULT]);
@@ -428,11 +414,11 @@ export function findConfigItemByLanguage(config: MappingConfig, languageId: stri
   if (!config || !Array.isArray(config)) {
     return null;
   }
-  
+
   if (!languageId || typeof languageId !== 'string') {
     return null;
   }
-  
+
   for (const item of config) {
     if (!item || typeof item !== 'object') {
       continue;
@@ -455,7 +441,7 @@ export function getAllLanguagesFromConfig(config: MappingConfig): string[] {
   const languages = new Set<string>();
   for (const item of config) {
     if (item.languages) {
-      item.languages.forEach(lang => languages.add(lang));
+      item.languages.forEach((lang) => languages.add(lang));
     }
   }
   // 如果没有任何配置指定语言，返回默认语言列表
@@ -472,7 +458,7 @@ export function getAllAssignmentOperatorsFromConfig(config: MappingConfig): stri
   const operators = new Set<string>();
   for (const item of config) {
     if (item.assignmentOperators && Array.isArray(item.assignmentOperators)) {
-      item.assignmentOperators.forEach(op => {
+      item.assignmentOperators.forEach((op) => {
         if (op && typeof op === 'string') {
           operators.add(op);
         }
