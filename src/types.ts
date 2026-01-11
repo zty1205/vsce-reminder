@@ -2,6 +2,8 @@
  * 类型定义
  */
 
+import { PresetName } from "./presets/types";
+
 /**
  * 变量映射项
  */
@@ -21,6 +23,7 @@ export interface MappingConfigItem {
   /** 映射对象，键为 CSS 属性名，值为该属性对应的值到变量的映射
    * 一个值可以对应一个或多个变量映射项（包含 mapping 和 description）
    */
+  presets?: PresetName[];
   mapping: {
     [key: string]: {
       [value: string]: VariableMappingItem[];

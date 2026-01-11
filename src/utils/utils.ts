@@ -5,8 +5,114 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import projectConfig from './reminder.config';
-import { MappingConfig, MappingConfigItem, VariableMappingItem } from './types';
+import { MappingConfig, MappingConfigItem, VariableMappingItem } from '../types';
+import { getPresetConfigs } from '../presets';
+import { PresetName } from '../presets/types';
+import { logger } from './logger';
+
+/**
+ * 验证配置项的有效性
+ * @param configItem 要验证的配置项
+ * @returns 验证结果，如果有效返回 true，否则返回 false
+ */
+export function validateConfigItem(configItem: MappingConfigItem | null): boolean {
+  if (!configItem) {
+    logger.warn('配置项为空');
+    return false;
+  }
+
+  // 验证 mapping 字段
+  if (!configItem.mapping || typeof configItem.mapping !== 'object') {
+    logger.warn('配置项的 mapping 字段无效');
+    return false;
+  }
+
+  // 验证 mapping 中的每个属性
+  for (const [propertyName, valueMapping] of Object.entries(configItem.mapping)) {
+    if (!valueMapping || typeof valueMapping !== 'object') {
+      logger.warn(`属性 "${propertyName}" 的值映射无效`);
+      return false;
+    }
+
+    // 验证每个值对应的变量映射数组
+    for (const [value, variableMappingItems] of Object.entries(valueMapping)) {
+      if (!Array.isArray(variableMappingItems)) {
+        logger.warn(`属性 "${propertyName}" 的值 "${value}" 对应的变量映射不是数组`);
+        return false;
+      }
+
+      // 验证变量映射项
+      for (const item of variableMappingItems) {
+        if (!item || typeof item !== 'object') {
+          logger.warn(`属性 "${propertyName}" 的值 "${value}" 的变量映射项无效`);
+          return false;
+        }
+        if (!item.mapping || typeof item.mapping !== 'string') {
+          logger.warn(`属性 "${propertyName}" 的值 "${value}" 的变量映射项缺少 mapping 字段`);
+          return false;
+        }
+      }
+    }
+  }
+
+  // 验证 languages 字段（如果存在）
+  if (configItem.languages !== undefined) {
+    if (!Array.isArray(configItem.languages)) {
+      logger.warn('配置项的 languages 字段必须是数组');
+      return false;
+    }
+    for (const lang of configItem.languages) {
+      if (typeof lang !== 'string') {
+        logger.warn('配置项的 languages 数组中的元素必须是字符串');
+        return false;
+      }
+    }
+  }
+
+  // 验证 assignmentOperators 字段（如果存在）
+  if (configItem.assignmentOperators !== undefined) {
+    if (!Array.isArray(configItem.assignmentOperators)) {
+      logger.warn('配置项的 assignmentOperators 字段必须是数组');
+      return false;
+    }
+    for (const op of configItem.assignmentOperators) {
+      if (typeof op !== 'string') {
+        logger.warn('配置项的 assignmentOperators 数组中的元素必须是字符串');
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+/**
+ * 验证配置数组的有效性
+ * @param config 要验证的配置数组
+ * @returns 验证后的有效配置数组
+ */
+export function validateConfig(config: MappingConfig): MappingConfig {
+  if (!Array.isArray(config)) {
+    logger.error('配置必须是数组');
+    return [];
+  }
+
+  const validConfig: MappingConfig = [];
+  for (let i = 0; i < config.length; i++) {
+    const item = config[i];
+    if (validateConfigItem(item)) {
+      validConfig.push(item);
+    } else {
+      logger.warn(`配置项 ${i} 验证失败，已跳过`);
+    }
+  }
+
+  if (validConfig.length === 0) {
+    logger.warn('所有配置项验证失败，将使用默认配置');
+  }
+
+  return validConfig;
+}
 
 /**
  * 获取所有支持的属性名（用于构建正则表达式）
@@ -84,12 +190,15 @@ export function readConfigFile(configPath: string): MappingConfig | null {
     try {
       const parsed = JSON.parse(configContent);
       // 兼容数组和对象格式
+      let config: MappingConfig;
       if (Array.isArray(parsed)) {
-        return parsed as MappingConfig;
+        config = parsed as MappingConfig;
       } else {
         // 如果是对象格式，转换为数组
-        return [parsed as MappingConfigItem];
+        config = [parsed as MappingConfigItem];
       }
+      // 验证配置
+      return validateConfig(config);
     } catch (jsonError) {
       vscode.window.showErrorMessage(
         `解析 JSON 配置文件失败: ${(jsonError as Error)?.message}`
@@ -199,15 +308,80 @@ function findUserConfigPath(projectRootPath: string): string | null {
 }
 
 /**
- * 加载合并后的配置（项目默认配置 + 工作区根目录配置）
- * 将 projectConfig 合并到用户配置文件的每一项中
+ * 将字符串转换为 PresetName 枚举值
+ */
+function stringToPresetName(name: string | PresetName): PresetName | null {
+  // 如果已经是枚举值，直接返回
+  if (Object.values(PresetName).includes(name as PresetName)) {
+    return name as PresetName;
+  }
+  
+  // 尝试将字符串转换为枚举值（使用枚举值作为 key）
+  const presetNameMap: Record<string, PresetName> = {
+    [PresetName.HORO_NIO]: PresetName.HORO_NIO,
+    [PresetName.HORO]: PresetName.HORO,
+    [PresetName.HORO_ALPS]: PresetName.HORO_ALPS,
+    [PresetName.HORO_FY]: PresetName.HORO_FY,
+    [PresetName.CEDAR]: PresetName.CEDAR,
+    [PresetName.DEFAULT]: PresetName.DEFAULT,
+  };
+  
+  return presetNameMap[name.toLowerCase()] || null;
+}
+
+/**
+ * 合并多个预设配置为一个配置项
+ * 按顺序合并，后面的配置会覆盖前面的配置
+ */
+function mergePresetConfigs(presetConfigs: MappingConfigItem[]): MappingConfigItem {
+  // 从空配置开始，逐个合并预设配置
+  return presetConfigs.reduce(
+    (merged, presetConfig) => mergeProjectConfigIntoItem(merged, presetConfig),
+    { mapping: {}, prefix: '', suffix: '' } as MappingConfigItem
+  );
+}
+
+/**
+ * 获取默认预设配置并与用户配置合并
+ */
+function mergeDefaultPresetWithUserConfig(userItem: MappingConfigItem): MappingConfigItem {
+  const defaultConfigs = getPresetConfigs([PresetName.DEFAULT]);
+  const defaultPresetConfig = defaultConfigs[0] || { mapping: {} };
+  return mergeProjectConfigIntoItem(defaultPresetConfig, userItem);
+}
+
+/**
+ * 根据预设名称数组获取并合并预设配置，然后与用户配置合并
+ */
+function mergePresetsWithUserConfig(
+  presetNames: PresetName[] | undefined,
+  userItem: MappingConfigItem
+): MappingConfigItem {
+  // 如果没有指定 presets 或为空，使用默认预设
+  if (!presetNames || presetNames.length === 0) {
+    return mergeDefaultPresetWithUserConfig(userItem);
+  }
+  
+  // 获取预设配置
+  const presetConfigs = getPresetConfigs(presetNames);
+  
+  // 如果没有预设配置，使用默认预设
+  if (presetConfigs.length === 0) {
+    return mergeDefaultPresetWithUserConfig(userItem);
+  }
+  
+  // 合并所有预设配置
+  const mergedPresetConfig = mergePresetConfigs(presetConfigs);
+  
+  // 将合并后的预设配置与用户配置项合并（用户配置优先）
+  return mergeProjectConfigIntoItem(mergedPresetConfig, userItem);
+}
+
+/**
+ * 加载合并后的配置（预设配置 + 工作区根目录配置）
+ * 根据用户配置中的 presets 字段加载预设配置并合并
  */
 export function loadMergedConfig(): MappingConfig {
-  // 兼容数组和对象格式的项目配置，但只取第一个作为基础配置
-  const baseProjectConfig: MappingConfigItem = Array.isArray(projectConfig)
-    ? (projectConfig as MappingConfig)[0] || {} as MappingConfigItem
-    : projectConfig as MappingConfigItem;
-
   try {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     const projectRootPath = workspaceFolder?.uri.fsPath;
@@ -215,18 +389,35 @@ export function loadMergedConfig(): MappingConfig {
     const userConfig = userConfigPath ? readConfigFile(userConfigPath) : null;
 
     if (userConfig && userConfig.length > 0) {
-      // 将项目配置合并到每个用户配置项中
-      return mergeConfigs(baseProjectConfig, userConfig);
+      // 验证并处理每个用户配置项
+      const validatedConfig = validateConfig(userConfig);
+      if (validatedConfig.length === 0) {
+        logger.warn('用户配置验证失败，使用默认配置');
+        const defaultConfigs = getPresetConfigs([PresetName.DEFAULT]);
+        return defaultConfigs.length > 0 ? defaultConfigs : [{ mapping: {} }];
+      }
+      return validatedConfig.map(userItem => {
+        // 将字符串数组转换为 PresetName 数组，过滤掉无效值
+        const presetNames = (userItem.presets || [])
+          .map(name => stringToPresetName(name as string))
+          .filter((name): name is PresetName => name !== null);
+        
+        // 合并预设配置和用户配置
+        return mergePresetsWithUserConfig(presetNames, userItem);
+      });
     } else {
-      // 如果没有用户配置，返回项目配置作为数组
-      return [baseProjectConfig];
+      // 如果没有用户配置，返回默认预设配置
+      const defaultConfigs = getPresetConfigs([PresetName.DEFAULT]);
+      return defaultConfigs.length > 0 ? defaultConfigs : [{ mapping: {} }];
     }
   } catch (error) {
     vscode.window.showErrorMessage(
       `加载配置失败: ${(error as Error)?.message}`
     );
     console.error('加载配置失败:', error);
-    return [baseProjectConfig];
+    // 出错时返回默认预设配置
+    const defaultConfigs = getPresetConfigs([PresetName.DEFAULT]);
+    return defaultConfigs.length > 0 ? defaultConfigs : [{ mapping: {} }];
   }
 }
 

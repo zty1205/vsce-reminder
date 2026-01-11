@@ -4,29 +4,36 @@
  */
 
 import * as vscode from 'vscode';
-import { MappingConfig } from './types';
-import { loadMergedConfig, getSupportedPropertyNamesFromConfig, normalizePropertyName, findConfigItemByLanguage, getAssignmentOperatorsPattern } from './utils';
+import { MappingConfig } from '../types';
+import { normalizePropertyName, findConfigItemByLanguage } from '../utils/utils';
+import { logger } from '../utils/logger';
+import { ConfigManager } from '../utils/configManager';
+import { regexCache } from '../utils/regexCache';
 
 /**
  * 代码操作提供者类
  * 当用户输入了配置中存在的值时，可以通过快速修复一键转换为对应的 CSS 变量
  */
 export class ConvertToVariableCodeActionProvider implements vscode.CodeActionProvider {
-  /** 缓存的配置数组 */
-  private config: MappingConfig = [];
+  /** 配置管理器 */
+  private configManager: ConfigManager;
 
   /**
    * 构造函数
    */
-  constructor() {
-    this.loadConfig();
+  constructor(configManager: ConfigManager) {
+    this.configManager = configManager;
+    // 监听配置变化
+    this.configManager.onConfigChange(() => {
+      logger.debug('代码操作提供者：配置已更新');
+    });
   }
 
   /**
-   * 加载配置文件
+   * 获取当前配置
    */
-  private loadConfig() {
-    this.config = loadMergedConfig();
+  private getConfig(): MappingConfig {
+    return this.configManager.getConfig();
   }
 
   /**
@@ -38,17 +45,14 @@ export class ConvertToVariableCodeActionProvider implements vscode.CodeActionPro
     context: vscode.CodeActionContext,
     token: vscode.CancellationToken
   ): vscode.ProviderResult<vscode.CodeAction[]> {
-    // 如果配置未加载，尝试重新加载
-    if (this.config.length === 0) {
-      this.loadConfig();
-    }
+    const config = this.getConfig();
 
-    if (this.config.length === 0) {
+    if (config.length === 0) {
       return [];
     }
 
     // 根据当前文档语言查找匹配的配置项
-    const configItem = findConfigItemByLanguage(this.config, document.languageId);
+    const configItem = findConfigItemByLanguage(config, document.languageId);
     if (!configItem) {
       return [];
     }
@@ -56,23 +60,9 @@ export class ConvertToVariableCodeActionProvider implements vscode.CodeActionPro
     const codeActions: vscode.CodeAction[] = [];
     const lineText = document.lineAt(range.start.line).text;
     
-    // 获取所有支持的属性名
-    const supportedProperties = getSupportedPropertyNamesFromConfig(configItem);
-    if (supportedProperties.length === 0) {
-      return [];
-    }
-
-    // 转义特殊字符并构建正则表达式模式
-    const escapedProperties = supportedProperties.map(prop => 
-      prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    );
-    const propertyPattern = `(${escapedProperties.join('|')})`;
-
-    // 获取赋值操作符正则表达式模式（已包含空格匹配）
-    const assignmentOperatorsPattern = getAssignmentOperatorsPattern(configItem.assignmentOperators);
-
-    // 匹配 CSS 属性及其值
-    const propertyMatch = lineText.match(new RegExp(`${propertyPattern}${assignmentOperatorsPattern}([^;]+)`, 'i'));
+    // 使用缓存的正则表达式
+    const regex = regexCache.getRegex(configItem, 'codeAction');
+    const propertyMatch = lineText.match(regex);
     
     if (!propertyMatch || propertyMatch.length < 3) {
       return [];
@@ -170,7 +160,6 @@ export class ConvertToVariableCodeActionProvider implements vscode.CodeActionPro
 
       codeActions.push(action);
     });
-
     return codeActions;
   }
 }

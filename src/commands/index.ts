@@ -3,9 +3,11 @@
  */
 
 import * as vscode from 'vscode';
-import { MappingConfig } from './types';
-import { getSupportedPropertyNamesFromConfig, normalizePropertyName, findConfigItemByLanguage, getAssignmentOperatorsPattern } from './utils';
-import { ReminderProvider } from './completionProvider';
+import { MappingConfig } from '../types';
+import { normalizePropertyName, findConfigItemByLanguage } from '../utils/utils';
+import { ReminderProvider } from '../providers/completionProvider';
+import { getConfigManager } from '../utils/configManager';
+import { regexCache } from '../utils/regexCache';
 
 /**
  * 注册手动转换命令
@@ -34,8 +36,9 @@ export function registerConvertCommand(context: vscode.ExtensionContext): vscode
       // 获取选中文本所在行的内容
       const lineText = editor.document.lineAt(selection.start.line).text;
       
-      // 创建提供者实例并加载配置
-      const provider = new ReminderProvider();
+      // 获取配置管理器并创建提供者实例
+      const configManager = getConfigManager();
+      const provider = new ReminderProvider(configManager);
       const config = provider.getConfig();
       
       if (config.length === 0) {
@@ -50,24 +53,10 @@ export function registerConvertCommand(context: vscode.ExtensionContext): vscode
         return;
       }
 
-      // 获取所有支持的属性名
-      const supportedProperties = getSupportedPropertyNamesFromConfig(configItem);
-      if (supportedProperties.length === 0) {
-        vscode.window.showWarningMessage('配置中没有支持的属性');
-        return;
-      }
-
-      // 转义特殊字符并构建正则表达式模式
-      const escapedProperties = supportedProperties.map(prop => 
-        prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      );
-      const propertyPattern = `(${escapedProperties.join('|')})`;
-
-      // 获取赋值操作符正则表达式模式（已包含空格匹配）
-      const assignmentOperatorsPattern = getAssignmentOperatorsPattern(configItem.assignmentOperators);
-
-      // 检查该行是否包含支持的 属性
-      const propertyMatch = lineText.match(new RegExp(`${propertyPattern}${assignmentOperatorsPattern}`, 'i'));
+      // 使用缓存的正则表达式（使用 codeAction 模式，因为需要匹配值）
+      const regex = regexCache.getRegex(configItem, 'codeAction');
+      // 检查该行是否包含支持的属性
+      const propertyMatch = lineText.match(regex);
       
       if (!propertyMatch || propertyMatch.length < 2) {
         // 防止空指针：检查 mapping 是否存在
