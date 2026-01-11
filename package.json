@@ -1,0 +1,72 @@
+{
+  "name": "vsce-reminder",
+  "displayName": "reminder - 变量转换,提示助手",
+  "description": "根据配置自动提示变量并支持值到变量的转换",
+  "version": "0.0.2",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "publisher": "tengyuezhang1205",
+  "icon": "image/icon.jpeg",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zty1205/vsce-reminder"
+  },
+  "categories": [
+    "Other",
+    "Formatters"
+  ],
+  "activationEvents": [
+    "onLanguage:css",
+    "onLanguage:scss",
+    "onLanguage:less",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:vue",
+    "onLanguage:html",
+    "onLanguage:json",
+    "onLanguage:markdown",
+    "onLanguage:php",
+    "onLanguage:java"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "reminder.convertToVariable",
+        "title": "转换变量"
+      }
+    ],
+    "configuration": {
+      "title": "reminder",
+      "properties": {
+        "reminder.configPath": {
+          "type": "string",
+          "default": "src/reminder.config.json",
+          "description": "配置文件路径（相对于工作区根目录）"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "package:yarn": "vsce package --yarn",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/node": "16.x",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "@vscode/vsce": "^3.7.1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT"
+}
